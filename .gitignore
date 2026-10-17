@@ -1,0 +1,22 @@
+# OMC session state
+.omc/
+**/.omc/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Secrets / env
+.env
+.env.*
+secrets/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Dependencies / build
+node_modules/
+dist/
+build/
