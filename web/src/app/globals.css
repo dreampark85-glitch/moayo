@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+}
+
+:focus-visible {
+  outline: 3px solid #047857;
+  outline-offset: 2px;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+/* 히트맵: 농도(색) + 빗금 패턴 병기 — 색만으로 정보를 전달하지 않는다 */
+.heat-0 { background-color: #f1f5f9; }
+.heat-1 { background-color: #bbf7d0; background-image: repeating-linear-gradient(45deg, transparent 0 6px, rgb(5 150 105 / 0.25) 6px 7px); }
+.heat-2 { background-color: #6ee7b7; background-image: repeating-linear-gradient(45deg, transparent 0 4px, rgb(4 120 87 / 0.4) 4px 5px); }
+.heat-3 { background-color: #34d399; background-image: repeating-linear-gradient(45deg, transparent 0 3px, rgb(6 78 59 / 0.5) 3px 4px); }
+.heat-4 { background-color: #059669; background-image: repeating-linear-gradient(45deg, transparent 0 2px, rgb(255 255 255 / 0.45) 2px 3px); color: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
