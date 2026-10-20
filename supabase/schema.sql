@@ -1,5 +1,5 @@
 -- MOAYO Supabase 스키마 초안 (PRD v0.1 10장 데이터 모델 기준)
--- 가정: 인증은 Supabase Auth, 기기에서 uuid를 생성해 오프라인 기록 후 동기화(PRD 11장).
+-- 가정: 인증은 Supabase Auth, 기기에서 uuid를 생성해 오프라인 기록 후 동기화(PRD 11장). 목표·미션·기록·추천 id는 클라이언트 생성 text.
 -- 카메라 영상/사진은 저장하지 않는다(사진 인증 M-05는 P1, 별도 마이그레이션으로 추가).
 
 -- ───────── 열거형 ─────────
@@ -12,7 +12,7 @@ create type goal_unit        as enum ('rep', 'min', 'step');
 create type goal_status      as enum ('active', 'paused', 'done');
 create type mission_type     as enum ('count', 'steps', 'timer', 'photo', 'mini');
 create type record_status    as enum ('done', 'missed');
-create type verification     as enum ('auto', 'manual');             -- 수동 카운트·미니 미션은 manual로 표시
+create type verification     as enum ('auto', 'manual', 'simulated'); -- 수동 카운트·미니 미션은 manual, 웹 프로토타입 걸음 수는 simulated
 create type difficulty       as enum ('easy', 'ok', 'hard');
 create type rec_response     as enum ('accepted', 'edited', 'skipped');
 create type rec_rule         as enum (
@@ -42,7 +42,7 @@ create table profiles (
 
 -- ───────── Goal ─────────
 create table goals (
-  goal_id     uuid primary key default gen_random_uuid(),
+  goal_id     text primary key default gen_random_uuid()::text,
   user_id     uuid        not null references profiles(user_id) on delete cascade,
   exercise    text        not null,
   body_part   body_part   not null,
@@ -64,8 +64,8 @@ create index goals_user_status_idx on goals (user_id, status);
 
 -- ───────── Mission ─────────
 create table missions (
-  mission_id    uuid primary key default gen_random_uuid(),
-  goal_id       uuid         not null references goals(goal_id) on delete cascade,
+  mission_id    text primary key,                                     -- m-{goal_id}-{YYYYMMDD}, 클라이언트 생성
+  goal_id       text         not null references goals(goal_id) on delete cascade,
   mission_date  date         not null,
   scheduled_at  timestamptz  not null,
   type          mission_type not null,
@@ -78,9 +78,9 @@ create index missions_goal_date_idx on missions (goal_id, mission_date);
 
 -- ───────── Record ─────────
 create table records (
-  record_id     uuid primary key default gen_random_uuid(),
-  mission_id    uuid          not null unique references missions(mission_id) on delete cascade,
-  goal_id       uuid          not null references goals(goal_id) on delete cascade,  -- 조회 편의용 비정규화
+  record_id     text primary key default gen_random_uuid()::text,
+  mission_id    text          not null unique references missions(mission_id) on delete cascade,
+  goal_id       text          not null references goals(goal_id) on delete cascade,  -- 조회 편의용 비정규화
   record_date   date          not null,                                              -- 미션 예정일
   status        record_status not null,
   amount        integer       not null default 0 check (amount >= 0),
@@ -97,8 +97,8 @@ create index records_goal_date_idx on records (goal_id, record_date desc);
 
 -- ───────── Recommendation ─────────
 create table recommendations (
-  rec_id          uuid primary key default gen_random_uuid(),
-  goal_id         uuid         not null references goals(goal_id) on delete cascade,
+  rec_id          text primary key default gen_random_uuid()::text,
+  goal_id         text         not null references goals(goal_id) on delete cascade,
   rule            rec_rule     not null,
   proposed_amount integer      not null check (proposed_amount > 0),
   response        rec_response not null,

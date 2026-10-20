@@ -35,6 +35,6 @@ export class AppStore {
   };
 }
 
-export function createAppStore(): AppStore {
-  return new AppStore(createInitialState());
+export function createAppStore(initial: AppState = createInitialState()): AppStore {
+  return new AppStore(initial);
 }

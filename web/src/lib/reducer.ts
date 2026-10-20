@@ -2,6 +2,7 @@
 import type { AlarmState, AppState, Goal, Mission, PracticeRecord, Recommendation } from './types.ts';
 
 export type Action =
+  | { type: 'HYDRATE'; state: AppState }
   | { type: 'ADD_GOAL'; goal: Goal; missions: Mission[] }
   | { type: 'SAVE_RECORD'; record: PracticeRecord }
   | { type: 'SET_ALARM'; alarm: AlarmState | null }
@@ -13,6 +14,8 @@ export type Action =
 
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
+    case 'HYDRATE':
+      return action.state;
     case 'ADD_GOAL':
       return { ...state, goals: [...state.goals, action.goal], missions: [...state.missions, ...action.missions] };
     case 'COMPLETE_ONBOARDING':
