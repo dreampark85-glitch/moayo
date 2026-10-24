@@ -1,4 +1,4 @@
-import type { RecommendationResponse, RuleId } from '@/lib/types';
+import type { RecommendationResponse, RecordKind, RuleId } from '@/lib/types';
 
 export const RULE_LABEL: Record<RuleId, string> = {
   pain_stop: '통증 중단',
@@ -16,4 +16,11 @@ export const RESPONSE_LABEL: Record<RecommendationResponse, string> = {
   accepted: '수락',
   edited: '수정',
   skipped: '건너뜀',
+};
+
+export const RECORD_KIND_LABEL: Record<RecordKind, string> = {
+  normal: '일반',
+  mini: '미니',
+  comeback: '복귀',
+  bonus: '보너스',
 };

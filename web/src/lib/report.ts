@@ -15,6 +15,9 @@ export interface WeeklyReport {
   prevAchievementRate: number;
   deltaDone: number;
   deltaRate: number;
+  miniCount: number; // done 중 kind='mini' (doneCount에 포함)
+  comebackCount: number;
+  bonusCount: number; // 보너스 done (doneCount·달성률에 미포함)
 }
 
 export function lastCompletedWeekStart(today: ISODate): ISODate {
@@ -25,7 +28,8 @@ function weekStats(goals: Goal[], records: PracticeRecord[], weekStart: ISODate)
   const weekEnd = addDays(weekStart, 6);
   const days = dateRange(weekStart, weekEnd);
   const scheduledCount = days.reduce((sum, d) => sum + goals.filter((g) => isScheduled(g, d)).length, 0);
-  const inWeek = records.filter((r) => r.date >= weekStart && r.date <= weekEnd);
+  const all = records.filter((r) => r.date >= weekStart && r.date <= weekEnd);
+  const inWeek = all.filter((r) => r.kind !== 'bonus'); // 보너스는 실천 횟수·달성률에서 제외
   const done = inWeek.filter((r) => r.status === 'done');
   const totalMinutes = Math.round(done.reduce((sum, r) => sum + r.durationSec, 0) / 60);
   const rate = scheduledCount === 0 ? 0 : Math.round((done.length / scheduledCount) * 100);
@@ -36,6 +40,9 @@ function weekStats(goals: Goal[], records: PracticeRecord[], weekStart: ISODate)
     scheduledCount,
     totalMinutes,
     rate,
+    miniCount: done.filter((r) => r.kind === 'mini').length,
+    comebackCount: done.filter((r) => r.kind === 'comeback').length,
+    bonusCount: all.filter((r) => r.kind === 'bonus' && r.status === 'done').length,
   };
 }
 
@@ -54,5 +61,8 @@ export function weeklyReport(goals: Goal[], records: PracticeRecord[], weekStart
     prevAchievementRate: prev.rate,
     deltaDone: cur.doneCount - prev.doneCount,
     deltaRate: cur.rate - prev.rate,
+    miniCount: cur.miniCount,
+    comebackCount: cur.comebackCount,
+    bonusCount: cur.bonusCount,
   };
 }

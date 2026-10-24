@@ -1,4 +1,4 @@
-import type { Difficulty, Unit, Verification } from '@/lib/types';
+import type { Difficulty, RecordKind, Unit, Verification } from '@/lib/types';
 
 export function amountLabel(unit: Unit, amount: number): string {
   if (unit === 'rep') return `${amount}회`;
@@ -21,3 +21,10 @@ export const VERIFICATION_LABEL: Record<Verification, string> = {
 export function verificationOf(unit: Unit): Verification {
   return unit === 'rep' ? 'manual' : unit === 'step' ? 'simulated' : 'auto';
 }
+
+export const KIND_LABEL: Record<RecordKind, string> = {
+  normal: '일반',
+  mini: '미니',
+  bonus: '보너스',
+  comeback: '복귀',
+};

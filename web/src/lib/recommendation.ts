@@ -29,6 +29,13 @@ export function hasPainMemo(memo: string): boolean {
   return PAIN_PATTERN.test(memo);
 }
 
+/** 최근 3건(모든 kind) 중 통증 메모가 있고 해제 시각 이후인가 (복귀·미니 기록의 통증도 포함) */
+export function hasActivePain(goal: Goal, records: PracticeRecord[], painClearedAt: Record<string, string>): boolean {
+  const recent = records.filter((r) => r.goalId === goal.goalId && r.kind !== 'bonus').sort(byRecent).slice(0, 3);
+  const clearedAt = painClearedAt[goal.exercise] ?? '';
+  return recent.some((r) => hasPainMemo(r.memo) && r.completedAt > clearedAt);
+}
+
 export interface RecommendInput {
   goal: Goal;
   goals: Goal[];
@@ -79,7 +86,9 @@ export function recommend(input: RecommendInput): RecommendationResult {
   const base = goal.target;
   const unit = goal.unit;
   const label = goal.exercise;
-  const history = records.filter((r) => r.goalId === goal.goalId).sort(byRecent);
+  // 증감 판단 창(D4): 미니·복귀·보너스는 분량 추천에서 제외 (통증 확인만 모든 kind를 본다)
+  const all = records.filter((r) => r.goalId === goal.goalId && r.kind !== 'bonus');
+  const history = all.filter((r) => r.kind === 'normal').sort(byRecent);
   const recent = history.slice(0, 3);
   const n = history.length;
   const warnings = bodyPartWarnings(goal, goals, today);
@@ -98,15 +107,19 @@ export function recommend(input: RecommendInput): RecommendationResult {
     atMin: false,
   };
 
-  if (n === 0) {
+  if (n === 0 && all.length > 0 && !hasActivePain(goal, records, painClearedAt)) {
+    result.rule = 'insufficient_data';
+    result.message = '현재 분량을 유지해요. 기록이 3회 쌓이면 맞춤 추천을 해드릴게요 (데이터 더 모으는 중).';
+    return result;
+  }
+  if (n === 0 && all.length === 0) {
     result.rule = 'no_data';
     result.message = `아직 기록이 없어요. 처음 목표(${base}${unitSuffix(unit)})로 시작해 볼까요?`;
     return result;
   }
 
   // 1. 통증 (최근 3건, 통증 해제 시각 이후)
-  const clearedAt = painClearedAt[goal.exercise] ?? '';
-  if (recent.some((r) => hasPainMemo(r.memo) && r.completedAt > clearedAt)) {
+  if (hasActivePain(goal, records, painClearedAt)) {
     result.rule = 'pain_stop';
     result.stop = true;
     result.message = `통증 메모가 있어 ${label} 추천을 멈췄어요. 충분히 쉬고, 통증이 계속되면 운동을 중단하고 전문가와 상담하세요.`;

@@ -1,17 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { DIFFICULTY_LABEL, VERIFICATION_LABEL, amountLabel, verificationOf } from '@/components/mission/labels';
+import { DIFFICULTY_LABEL, KIND_LABEL, VERIFICATION_LABEL, amountLabel, verificationOf } from '@/components/mission/labels';
 import { SafetyNotice } from '@/components/shell/SafetyNotice';
 import { useApp } from '@/components/shell/AppProvider';
 import { LiveRegion } from '@/components/ui/LiveRegion';
 import { RetryBanner } from '@/components/ui/RetryBanner';
 import { formatKo, timeOf } from '@/lib/date';
-import { selectMissionView, selectStreak } from '@/lib/selectors';
+import { miniAmount } from '@/lib/mini';
+import { selectComeback, selectMissionView, selectStreak } from '@/lib/selectors';
 import type { MissionView } from '@/lib/selectors';
-import type { Difficulty } from '@/lib/types';
+import type { Difficulty, RecordKind } from '@/lib/types';
 
 type Stage = 'run' | 'review';
 
@@ -41,7 +42,23 @@ export function MissionScreen() {
 }
 
 function MissionFlow({ view }: { view: MissionView }) {
+  const { state } = useApp();
+  const mode = useSearchParams().get('mode');
   const { goal, mission, record } = view;
+  const comeback = selectComeback(state);
+  const miniTarget = goal.unit === 'min' ? 1 : miniAmount(goal);
+  // 지원하지 않는 mode나 분량 0(미구현/대상 아님)이면 일반 모드로 되돌린다
+  let kind: RecordKind = 'normal';
+  let target = goal.target;
+  let message = '';
+  if (mode === 'comeback' && comeback && comeback.missionId === mission.missionId && comeback.amount > 0) {
+    kind = 'comeback';
+    target = comeback.amount;
+    message = comeback.message;
+  } else if (mode === 'mini' && miniTarget > 0) {
+    kind = 'mini';
+    target = miniTarget;
+  }
   const [stage, setStage] = useState<Stage>('run');
   const [amount, setAmount] = useState(0);
   const [durationSec, setDurationSec] = useState(0);
@@ -53,6 +70,7 @@ function MissionFlow({ view }: { view: MissionView }) {
       <ReviewStage
         missionId={mission.missionId}
         unit={goal.unit}
+        kind={kind}
         amount={amount}
         durationSec={durationSec}
         onBack={() => setStage('run')}
@@ -76,13 +94,19 @@ function MissionFlow({ view }: { view: MissionView }) {
       </header>
       <div>
         <h1 className="text-2xl font-bold text-slate-900">
-          {goal.exercise} {amountLabel(goal.unit, goal.target)}
+          {kind !== 'normal' && (
+            <span className="mr-2 rounded-full border-2 border-emerald-800 px-2 py-0.5 align-middle text-sm font-bold text-emerald-900">
+              {kind === 'mini' ? '1분 버전' : KIND_LABEL[kind]}
+            </span>
+          )}
+          {goal.exercise} {amountLabel(goal.unit, target)}
         </h1>
+        {message && <p className="mt-1 font-semibold text-slate-900">{message}</p>}
         <p className="text-sm text-slate-700">인증 방식: {VERIFICATION_LABEL[verificationOf(goal.unit)]}</p>
       </div>
-      {goal.unit === 'rep' && <CountRun target={goal.target} initial={amount} onComplete={(n) => finish(n, 0)} />}
-      {goal.unit === 'step' && <StepsRun target={goal.target} initial={amount} onComplete={(n) => finish(n, 0)} />}
-      {goal.unit === 'min' && <TimerRun targetMin={goal.target} onComplete={(sec) => finish(goal.target, sec)} />}
+      {goal.unit === 'rep' && <CountRun target={target} initial={amount} onComplete={(n) => finish(n, 0)} />}
+      {goal.unit === 'step' && <StepsRun target={target} initial={amount} onComplete={(n) => finish(n, 0)} />}
+      {goal.unit === 'min' && <TimerRun targetMin={target} onComplete={(sec) => finish(target, sec)} />}
       <div className="mt-auto space-y-2">
         <p className="text-xs font-bold text-slate-700">안전 고지</p>
         <p className="font-semibold text-rose-900">통증이 있으면 중단하세요.</p>
@@ -114,7 +138,17 @@ function ProgressBar({ value, target, label }: { value: number; target: number; 
   );
 }
 
-function CountRun({ target, initial, onComplete }: { target: number; initial: number; onComplete: (n: number) => void }) {
+export function CountRun({
+  target,
+  initial,
+  onComplete,
+  doneLabel = '완료하고 회고하기',
+}: {
+  target: number;
+  initial: number;
+  onComplete: (n: number) => void;
+  doneLabel?: string;
+}) {
   const [count, setCount] = useState(initial);
   return (
     <>
@@ -135,13 +169,23 @@ function CountRun({ target, initial, onComplete }: { target: number; initial: nu
       </button>
       <ProgressBar value={count} target={target} label="횟수 진행도" />
       <button type="button" onClick={() => onComplete(count)} disabled={count < target} className={PRIMARY_BTN}>
-        완료하고 회고하기
+        {doneLabel}
       </button>
     </>
   );
 }
 
-function StepsRun({ target, initial, onComplete }: { target: number; initial: number; onComplete: (n: number) => void }) {
+export function StepsRun({
+  target,
+  initial,
+  onComplete,
+  doneLabel = '완료하고 회고하기',
+}: {
+  target: number;
+  initial: number;
+  onComplete: (n: number) => void;
+  doneLabel?: string;
+}) {
   const [steps, setSteps] = useState(initial);
   return (
     <>
@@ -162,7 +206,7 @@ function StepsRun({ target, initial, onComplete }: { target: number; initial: nu
       </button>
       <ProgressBar value={steps} target={target} label="걸음 수 진행도" />
       <button type="button" onClick={() => onComplete(steps)} disabled={steps < target} className={PRIMARY_BTN}>
-        완료하고 회고하기
+        {doneLabel}
       </button>
     </>
   );
@@ -173,7 +217,15 @@ function formatClock(ms: number): string {
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
-function TimerRun({ targetMin, onComplete }: { targetMin: number; onComplete: (sec: number) => void }) {
+export function TimerRun({
+  targetMin,
+  onComplete,
+  doneLabel = '완료하고 회고하기',
+}: {
+  targetMin: number;
+  onComplete: (sec: number) => void;
+  doneLabel?: string;
+}) {
   const totalMs = targetMin * 60_000;
   const [remaining, setRemaining] = useState(totalMs);
   const [running, setRunning] = useState(false);
@@ -254,7 +306,7 @@ function TimerRun({ targetMin, onComplete }: { targetMin: number; onComplete: (s
         </button>
       )}
       <button type="button" onClick={() => onComplete(Math.round(totalMs / 1000))} disabled={!finished} className={PRIMARY_BTN}>
-        완료하고 회고하기
+        {doneLabel}
       </button>
     </>
   );
@@ -263,12 +315,13 @@ function TimerRun({ targetMin, onComplete }: { targetMin: number; onComplete: (s
 interface ReviewProps {
   missionId: string;
   unit: MissionView['goal']['unit'];
+  kind: RecordKind;
   amount: number;
   durationSec: number;
   onBack: () => void;
 }
 
-function ReviewStage({ missionId, unit, amount, durationSec, onBack }: ReviewProps) {
+function ReviewStage({ missionId, unit, kind, amount, durationSec, onBack }: ReviewProps) {
   const { api } = useApp();
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null);
   const [memo, setMemo] = useState('');
@@ -280,7 +333,7 @@ function ReviewStage({ missionId, unit, amount, durationSec, onBack }: ReviewPro
     setSaving(true);
     setError(null);
     try {
-      await api.saveRecord({ missionId, amount, durationSec, verification: verificationOf(unit), difficulty, memo });
+      await api.saveRecord({ missionId, amount, durationSec, verification: verificationOf(unit), difficulty, memo, kind });
     } catch (e) {
       setError(e instanceof Error ? e.message : '기록 저장에 실패했어요.');
     } finally {
@@ -292,6 +345,7 @@ function ReviewStage({ missionId, unit, amount, durationSec, onBack }: ReviewPro
     <div className="flex min-h-dvh flex-col gap-4 p-4">
       <h1 className="text-2xl font-bold text-slate-900">오늘 어땠나요?</h1>
       <p className="text-sm text-slate-700">
+        {kind !== 'normal' && `[${kind === 'mini' ? '1분 버전' : KIND_LABEL[kind]}] `}
         기록할 분량: {amountLabel(unit, amount)} ({VERIFICATION_LABEL[verificationOf(unit)]})
       </p>
       <div role="radiogroup" aria-labelledby="difficulty-label" className="space-y-2">
@@ -377,6 +431,11 @@ function DoneStage({ view }: { view: MissionView }) {
       <section aria-label="기록 요약" className="rounded-xl border border-slate-300 p-3 text-slate-900">
         <h2 className="mb-1 font-bold">
           {formatKo(mission.date)} {goal.exercise}
+          {done && record.kind !== 'normal' && (
+            <span className="ml-2 rounded-full border-2 border-emerald-800 px-2 py-0.5 text-sm font-bold text-emerald-900">
+              {KIND_LABEL[record.kind]}
+            </span>
+          )}
         </h2>
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
           <dt className="text-slate-600">상태</dt>

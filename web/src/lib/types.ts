@@ -40,8 +40,11 @@ export interface Mission {
   snoozeCount: 0 | 1 | 2;
 }
 
+export type RecordKind = 'normal' | 'mini' | 'bonus' | 'comeback';
+
 export interface PracticeRecord {
   recordId: string;
+  kind: RecordKind; // bonus: goalId=BONUS_GOAL_ID, missionId=bonusMissionId(date, bonusKey)
   missionId: string;
   goalId: string;
   date: ISODate; // 미션 예정일
@@ -105,6 +108,52 @@ export interface AlarmState {
   deadlineAt: number | null;
 }
 
+export type ReminderSetting = 'none' | 'hourBefore' | 'morning';
+
+export interface NotificationSettings {
+  reminder: ReminderSetting;
+  bonusNotification: boolean;
+  dailyCap: 2;
+}
+
+export interface ShieldLedgerEntry {
+  date: ISODate;
+  type: 'monthly' | 'earned' | 'used';
+  reason: string;
+}
+
+export type AppEventType = 'reminder_sent' | 'reminder_blocked' | 'alarm_fired' | 'alarm_blocked' | 'notification_off';
+
+export interface AppEvent {
+  type: AppEventType;
+  date: ISODate;
+  payload: Record<string, string | number | boolean>;
+}
+
+/** 홈에 표시되는 리마인드 (메모리 전용, 저장 안 함) */
+export interface ReminderNotice {
+  missionId: string;
+  goalId: string;
+  message: string;
+  date: ISODate;
+}
+
+export interface BonusOption {
+  bonusKey: string;
+  label: string;
+  unit: Unit;
+  amount: number;
+}
+
+/** 보너스 기록의 goalId 센티널 (DB에서는 null, remote.ts에서만 변환) */
+export const BONUS_GOAL_ID = 'bonus';
+export const BONUS_MISSION_PREFIX = 'bonus-';
+
+/** 보너스 기록의 missionId: `bonus-{YYYY-MM-DD}-{bonusKey}` */
+export function bonusMissionId(date: ISODate, bonusKey: string): string {
+  return `${BONUS_MISSION_PREFIX}${date}-${bonusKey}`;
+}
+
 export interface AppState {
   user: User;
   goals: Goal[];
@@ -114,7 +163,17 @@ export interface AppState {
   painClearedAt: Record<string, ISODateTime>; // 운동 종류 → 통증 해제 시각
   alarm: AlarmState | null;
   onboarded: boolean;
+  notificationSettings: NotificationSettings;
+  events: AppEvent[];
+  reminder: ReminderNotice | null;
+  demoDate: ISODate | null; // 시연용 가상 오늘 (Mock 전용). null이면 실제 날짜
 }
+
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+  reminder: 'hourBefore',
+  bonusNotification: false,
+  dailyCap: 2,
+};
 
 export interface GoalInput {
   exercise: string;
@@ -127,6 +186,12 @@ export interface GoalInput {
   templateId?: string;
 }
 
+export interface BonusInput {
+  bonusKey: string;
+  amount: number;
+  durationSec: number;
+}
+
 export interface RecordInput {
   missionId: string;
   amount: number;
@@ -134,4 +199,5 @@ export interface RecordInput {
   verification: Verification;
   difficulty: Difficulty;
   memo: string;
+  kind?: RecordKind; // 기본 'normal'
 }

@@ -5,6 +5,7 @@
 //  스트레칭 four_week_new / 걷기 insufficient_data / 요가 no_data
 import { addDays, dateRange, makeDateTime, today } from './date.ts';
 import { buildMissions, isScheduled, missionIdOf } from './missions.ts';
+import { DEFAULT_NOTIFICATION_SETTINGS } from './types.ts';
 import type { AppState, Difficulty, Goal, ISODate, PracticeRecord, Unit, Verification } from './types.ts';
 
 const USER_ID = 'u-1';
@@ -79,6 +80,7 @@ function buildRecords(goals: Goal[]): PracticeRecord[] {
       const missionId = missionIdOf(g.goalId, date);
       out.push({
         recordId: `r-${missionId}`,
+        kind: 'normal',
         missionId,
         goalId: g.goalId,
         date,
@@ -113,6 +115,10 @@ export function createInitialState(): AppState {
     painClearedAt: {},
     alarm: null,
     onboarded: true,
+    notificationSettings: { ...DEFAULT_NOTIFICATION_SETTINGS },
+    events: [],
+    reminder: null,
+    demoDate: null,
   };
 }
 

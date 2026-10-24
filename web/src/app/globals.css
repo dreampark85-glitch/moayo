@@ -41,3 +41,7 @@ textarea {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* 보너스: 색이 아닌 점 무늬 + 텍스트 표식으로 구분 (실천 횟수에 포함되지 않음) */
+.heat-bonus { position: relative; }
+.heat-bonus::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background-image: radial-gradient(circle, rgb(109 40 217 / 0.55) 1.2px, transparent 1.6px); background-size: 6px 6px; }

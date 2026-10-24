@@ -4,7 +4,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SaveFailedError } from './api.ts';
 import type { Sync } from './api.ts';
+import { BONUS_GOAL_ID, bonusMissionId, DEFAULT_NOTIFICATION_SETTINGS } from './types.ts';
 import type {
+  AppEvent,
   AppState,
   Difficulty,
   Goal,
@@ -12,9 +14,12 @@ import type {
   Mission,
   PracticeRecord,
   Recommendation,
+  RecordKind,
   Verification,
   Weekday,
 } from './types.ts';
+
+const EVENT_LOAD_LIMIT = 500;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -48,6 +53,10 @@ export function createEmptyState(): AppState {
     painClearedAt: {},
     alarm: null,
     onboarded: false,
+    notificationSettings: { ...DEFAULT_NOTIFICATION_SETTINGS },
+    events: [],
+    reminder: null,
+    demoDate: null,
   };
 }
 
@@ -102,15 +111,16 @@ const recommendationRow = (r: Recommendation) => ({
 });
 
 export async function loadState(db: SupabaseClient, userId: string): Promise<AppState> {
-  const [profile, goals, missions, records, recs, pains] = await Promise.all([
+  const [profile, goals, missions, records, recs, pains, events] = await Promise.all([
     db.from('profiles').select('*').eq('user_id', userId).single(),
     db.from('goals').select('*').order('created_at'),
     db.from('missions').select('*').order('mission_date'),
     db.from('records').select('*').order('record_date'),
     db.from('recommendations').select('*').order('responded_at'),
     db.from('pain_clears').select('*'),
+    db.from('app_events').select('*').order('created_at', { ascending: false }).limit(EVENT_LOAD_LIMIT),
   ]);
-  for (const r of [profile, goals, missions, records, recs, pains]) check(r.error);
+  for (const r of [profile, goals, missions, records, recs, pains, events]) check(r.error);
   const p = profile.data!;
   return {
     user: {
@@ -144,8 +154,10 @@ export async function loadState(db: SupabaseClient, userId: string): Promise<App
     })),
     records: records.data!.map((r): PracticeRecord => ({
       recordId: r.record_id,
-      missionId: r.mission_id,
-      goalId: r.goal_id,
+      kind: r.kind as RecordKind,
+      // 보너스는 DB에서 goal/mission이 null → 클라이언트 센티널로 변환
+      missionId: r.mission_id ?? bonusMissionId(r.record_date, r.bonus_key ?? ''),
+      goalId: r.goal_id ?? BONUS_GOAL_ID,
       date: r.record_date,
       status: r.status,
       amount: r.amount,
@@ -166,6 +178,16 @@ export async function loadState(db: SupabaseClient, userId: string): Promise<App
     painClearedAt: Object.fromEntries(pains.data!.map((x) => [x.exercise, fromIso(x.cleared_at)])),
     alarm: null,
     onboarded: p.onboarded,
+    notificationSettings: {
+      ...DEFAULT_NOTIFICATION_SETTINGS,
+      reminder: p.reminder_setting ?? DEFAULT_NOTIFICATION_SETTINGS.reminder,
+      bonusNotification: p.bonus_notification ?? DEFAULT_NOTIFICATION_SETTINGS.bonusNotification,
+    },
+    events: events.data!.reverse().map(
+      (e): AppEvent => ({ type: e.type, date: e.event_date, payload: e.payload as AppEvent['payload'] }),
+    ),
+    reminder: null,
+    demoDate: null,
   };
 }
 
@@ -181,6 +203,8 @@ export function createRemoteSync(db: SupabaseClient, userId: string): Sync {
       const { error } = await db.from('records').upsert(
         {
           record_id: record.recordId,
+          user_id: userId,
+          kind: record.kind,
           mission_id: record.missionId,
           goal_id: record.goalId,
           record_date: record.date,
@@ -211,6 +235,53 @@ export function createRemoteSync(db: SupabaseClient, userId: string): Sync {
         check((await db.from('missions').upsert(missions.map(missionRow), { onConflict: 'mission_id' })).error);
       }
       check((await db.from('recommendations').insert(recommendationRow(recommendation))).error);
+    },
+
+    async saveBonus(record) {
+      // 보너스는 goal/mission 없이 저장 (record_id가 날짜+종류로 결정적이라 재시도해도 중복되지 않음)
+      const bonusKey = record.missionId.split('-').slice(4).join('-');
+      const { error } = await db.from('records').upsert(
+        {
+          record_id: record.recordId,
+          user_id: userId,
+          kind: 'bonus',
+          bonus_key: bonusKey,
+          mission_id: null,
+          goal_id: null,
+          record_date: record.date,
+          status: 'done',
+          amount: record.amount,
+          duration_sec: record.durationSec,
+          verification: record.verification,
+          difficulty: null,
+          memo: '',
+          completed_at: toIso(record.completedAt),
+        },
+        { onConflict: 'record_id' },
+      );
+      if (error) throw new SaveFailedError();
+    },
+
+    async saveSettings(settings) {
+      check(
+        (
+          await db
+            .from('profiles')
+            .update({ reminder_setting: settings.reminder, bonus_notification: settings.bonusNotification })
+            .eq('user_id', userId)
+        ).error,
+      );
+    },
+
+    async logEvent(event) {
+      check((await db.from('app_events').insert({ user_id: userId, type: event.type, event_date: event.date, payload: event.payload })).error);
+    },
+
+    async rescheduleGoalTime(goalId, time, missions) {
+      check((await db.from('goals').update({ time_of_day: time }).eq('goal_id', goalId)).error);
+      if (missions.length) {
+        check((await db.from('missions').upsert(missions.map(missionRow), { onConflict: 'mission_id' })).error);
+      }
     },
 
     async clearPain(exercise, at) {

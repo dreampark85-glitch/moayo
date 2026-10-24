@@ -2,11 +2,19 @@
 
 import Link from 'next/link';
 import { amountLabel } from '@/components/mission/labels';
+import { RestDayCard } from '@/components/home/RestDayCard';
 import { SafetyNotice } from '@/components/shell/SafetyNotice';
 import { useApp, useScreenReady } from '@/components/shell/AppProvider';
 import { ScreenSkeleton } from '@/components/ui/Skeleton';
 import { formatKo, timeOf, today } from '@/lib/date';
-import { selectNextAlarm, selectStreak, selectTodayMissions } from '@/lib/selectors';
+import {
+  selectComeback,
+  selectNextAlarm,
+  selectNotificationStatus,
+  selectRestDay,
+  selectStreak,
+  selectTodayMissions,
+} from '@/lib/selectors';
 import type { MissionView } from '@/lib/selectors';
 
 const STATUS_LABEL = { pending: '대기', done: '완료', missed: '미실천' } as const;
@@ -22,6 +30,12 @@ export function HomeScreen() {
   const others = todays.filter((v) => v !== featured);
   const next = selectNextAlarm(state);
   const streak = selectStreak(state);
+  const comeback = selectComeback(state);
+  const featuredComeback = comeback && featured && comeback.missionId === featured.mission.missionId ? comeback : null;
+  const restDay = selectRestDay(state);
+  const status = selectNotificationStatus(state);
+  const statusText = [status.capReached ? '오늘 알림 상한 도달' : '', ...status.reasons].filter(Boolean).join(' · ');
+  const reminder = state.reminder;
 
   return (
     <div className="space-y-5 p-4">
@@ -37,14 +51,19 @@ export function HomeScreen() {
         </p>
       </section>
 
+      {restDay && <RestDayCard />}
+
       <section aria-label="오늘의 미션 카드" className="rounded-2xl bg-slate-900 p-5 text-white">
         {featured ? (
           <>
             <p className="text-sm text-slate-300">{timeOf(featured.mission.scheduledAt)} 예정</p>
             <p className="mt-1 text-3xl font-bold">{featured.goal.exercise}</p>
-            <p className="text-5xl font-extrabold">{amountLabel(featured.goal.unit, featured.goal.target)}</p>
+            <p className="text-5xl font-extrabold">
+              {amountLabel(featured.goal.unit, featuredComeback ? featuredComeback.amount : featured.goal.target)}
+            </p>
+            {featuredComeback && <p className="mt-2 text-base text-slate-100">{featuredComeback.message}</p>}
             <Link
-              href={`/mission/${featured.mission.missionId}`}
+              href={`/mission/${featured.mission.missionId}${featuredComeback ? '?mode=comeback' : ''}`}
               className="mt-4 flex min-h-12 items-center justify-center rounded-xl bg-emerald-400 px-4 text-lg font-bold text-slate-900"
             >
               지금 시작
@@ -67,6 +86,13 @@ export function HomeScreen() {
         )}
       </section>
 
+      {reminder && reminder.message && (
+        <section aria-label="리마인드" className="rounded-xl border-2 border-emerald-700 bg-emerald-50 p-3 text-emerald-950">
+          <h2 className="text-sm font-bold">리마인드</h2>
+          <p className="text-base font-semibold">{reminder.message}</p>
+        </section>
+      )}
+
       <section aria-label="다음 알림" className="rounded-xl border border-slate-200 p-3">
         <h2 className="text-sm font-semibold text-slate-600">다음 알림</h2>
         <p className="text-lg font-bold text-slate-900">
@@ -80,6 +106,16 @@ export function HomeScreen() {
         >
           지금 알림 발생(시연)
         </button>
+        <button
+          type="button"
+          onClick={() => api.triggerReminder()}
+          className="ml-2 mt-2 min-h-11 rounded-lg border border-slate-400 px-4 text-sm font-semibold text-slate-900"
+        >
+          리마인드 발생(시연)
+        </button>
+        <p role="status" className={statusText ? 'mt-2 rounded-lg border-2 border-amber-700 bg-amber-50 p-2 text-sm font-semibold text-amber-950' : 'sr-only'}>
+          {statusText}
+        </p>
       </section>
 
       {others.length > 0 && (

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "verify:domain": "node scripts/verify-domain.ts"
+    "verify:domain": "node scripts/verify-domain.ts",
+    "verify:flows": "node scripts/verify-flows.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

@@ -13,6 +13,7 @@ import { createInitialState } from '../src/lib/seed.ts';
 import { selectRecommendations, selectStreak, selectWeeklyReport } from '../src/lib/selectors.ts';
 import { computeStreak } from '../src/lib/streak.ts';
 import { TEMPLATES } from '../src/lib/templates.ts';
+import { runV02 } from './verify-v02.ts';
 import type { AppState, Goal, PracticeRecord, RuleId } from '../src/lib/types.ts';
 
 let passed = 0;
@@ -50,7 +51,7 @@ function fixtureRecords(
     const date = addDays(T, -1 - i);
     const status = it.s ?? 'done';
     return {
-      recordId: `x${i}`, missionId: `m${i}`, goalId, date, status, amount: 1, durationSec: 1, verification: 'manual',
+      recordId: `x${i}`, kind: 'normal', missionId: `m${i}`, goalId, date, status, amount: 1, durationSec: 1, verification: 'manual',
       difficulty: status === 'done' ? (it.d ?? 'ok') : null, memo: it.memo ?? '', completedAt: `${date}T10:00:00`,
     };
   });
@@ -58,7 +59,7 @@ function fixtureRecords(
 
 function doneRecord(goalId: string, date: string, i: number): PracticeRecord {
   return {
-    recordId: `d${i}`, missionId: `md${i}`, goalId, date, status: 'done', amount: 1, durationSec: 1,
+    recordId: `d${i}`, kind: 'normal', missionId: `md${i}`, goalId, date, status: 'done', amount: 1, durationSec: 1,
     verification: 'manual', difficulty: 'ok', memo: '', completedAt: `${date}T10:00:00`,
   };
 }
@@ -281,6 +282,9 @@ async function main() {
     console.log(`  ${d}(${'일월화수목금토'[weekdayOf(d)]}): ${passed - before} checks`);
   }
   setToday(null);
+  const beforeV02 = passed;
+  await runV02(check, { fixtureGoal, fixtureRecords });
+  console.log(`  v0.2 도메인: ${passed - beforeV02} checks`);
 
   // ---- 날짜 무관 단위 검증 ----
   await check('알림: 스누즈 2회 후 3번째 노출은 스누즈 불가, 30초 후 타임아웃', () => {

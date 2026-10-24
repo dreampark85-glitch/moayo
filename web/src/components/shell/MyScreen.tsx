@@ -3,7 +3,11 @@
 import Link from 'next/link';
 import { useApp, useScreenReady } from '@/components/shell/AppProvider';
 import { SafetyNotice } from '@/components/shell/SafetyNotice';
+import { CalendarExport } from '@/components/my/CalendarExport';
+import { DemoTools } from '@/components/my/DemoTools';
+import { NotificationSettings } from '@/components/my/NotificationSettings';
 import { ScreenSkeleton } from '@/components/ui/Skeleton';
+import { selectMetrics, selectNotificationStatus } from '@/lib/selectors';
 
 const LEVEL_LABEL = { beginner: '입문', intermediate: '중급' } as const;
 
@@ -19,7 +23,7 @@ function DisabledRow({ label }: { label: string }) {
 }
 
 export function MyScreen() {
-  const { state } = useApp();
+  const { state, api } = useApp();
   const ready = useScreenReady('my');
   if (!ready) return <ScreenSkeleton label="마이 화면을 불러오는 중" />;
   const { user } = state;
@@ -56,6 +60,10 @@ export function MyScreen() {
         </ul>
       </section>
 
+      <NotificationSettings settings={state.notificationSettings} status={selectNotificationStatus(state)} api={api} />
+
+      <CalendarExport goals={state.goals} />
+
       <Link href="/onboarding" className="flex min-h-12 items-center justify-center rounded-xl border-2 border-emerald-700 px-4 font-bold text-emerald-900">
         온보딩 다시 하기
       </Link>
@@ -66,6 +74,8 @@ export function MyScreen() {
         </h2>
         <SafetyNotice />
       </section>
+
+      <DemoTools api={api} metrics={selectMetrics(state)} />
 
       <p className="rounded-lg bg-slate-100 p-3 text-xs text-slate-700">
         이 프로토타입은 데이터를 메모리에만 보관해요. 새로고침하면 처음 상태로 돌아가요.

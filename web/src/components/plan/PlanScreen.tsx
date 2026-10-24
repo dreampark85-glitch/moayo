@@ -5,7 +5,7 @@ import { useApp, useScreenReady } from '@/components/shell/AppProvider';
 import { SafetyNotice } from '@/components/shell/SafetyNotice';
 import { ScreenSkeleton } from '@/components/ui/Skeleton';
 import { Tabs } from '@/components/ui/Tabs';
-import { selectRecommendations, selectWeeklyReport } from '@/lib/selectors';
+import { selectNextMissionPreview, selectRecommendations, selectWeeklyReport } from '@/lib/selectors';
 import { GoalsPanel } from './GoalsPanel';
 import { RecommendationCard } from './RecommendationCard';
 import { WeeklyReportPanel } from './WeeklyReportPanel';
@@ -22,6 +22,7 @@ export function PlanScreen() {
   const [tab, setTab] = useState('rec');
   const recs = useMemo(() => selectRecommendations(state), [state]);
   const report = useMemo(() => selectWeeklyReport(state), [state]);
+  const preview = useMemo(() => selectNextMissionPreview(state), [state]);
 
   if (!ready) return <ScreenSkeleton label="계획을 불러오는 중" />;
 
@@ -45,7 +46,7 @@ export function PlanScreen() {
             ))}
           </ul>
         ) : null}
-        {tab === 'report' ? <WeeklyReportPanel view={report} api={api} /> : null}
+        {tab === 'report' ? <WeeklyReportPanel view={report} preview={preview} api={api} /> : null}
         {tab === 'goals' ? <GoalsPanel goals={state.goals} /> : null}
       </Tabs>
     </div>

@@ -5,7 +5,8 @@ import { useApp, useScreenReady } from '@/components/shell/AppProvider';
 import { Tabs } from '@/components/ui/Tabs';
 import { ScreenSkeleton } from '@/components/ui/Skeleton';
 import { WEEKDAY_KO, addDays, dateRange, formatKo, monthKey, startOfWeek, today, weekdayOf } from '@/lib/date';
-import { selectDayDetail, selectHeatmap, selectStreak } from '@/lib/selectors';
+import { ShieldLedger } from '@/components/my/ShieldLedger';
+import { selectDayBonus, selectDayDetail, selectHeatmap, selectShieldLedger, selectStreak } from '@/lib/selectors';
 import { DayDetailModal } from './DayDetailModal';
 import { Heatmap, HeatmapLegend } from './Heatmap';
 
@@ -35,6 +36,7 @@ export function RecordsScreen() {
 
   const heatmap = useMemo(() => selectHeatmap(state, month), [state, month]);
   const streak = useMemo(() => selectStreak(state), [state]);
+  const ledger = useMemo(() => selectShieldLedger(state), [state]);
   const weekCells = useMemo(() => {
     const start = startOfWeek(today());
     const days = dateRange(start, addDays(start, 6));
@@ -51,6 +53,7 @@ export function RecordsScreen() {
   let max = current;
   for (let i = 0; i < MAX_FORWARD_MONTHS; i++) max = shiftMonth(max, 1);
   const dayItems = openDate ? selectDayDetail(state, openDate) : [];
+  const dayBonus = openDate ? selectDayBonus(state, openDate) : [];
 
   return (
     <div className="space-y-4 p-4">
@@ -114,7 +117,7 @@ export function RecordsScreen() {
                       {c.date === today() ? ' · 오늘' : ''}
                     </span>
                     <span>
-                      {c.doneCount}회 완료{c.missedCount > 0 ? ` · 미실천 ${c.missedCount}회` : ''}
+                      {c.doneCount}회 완료{c.bonusCount > 0 ? ` · 보너스 ${c.bonusCount}` : ''}{c.missedCount > 0 ? ` · 미실천 ${c.missedCount}회` : ''}
                       {c.doneCount === 0 && c.missedCount === 0 && c.scheduledCount > 0 && c.date >= today()
                         ? ` · 예정 ${c.scheduledCount}개`
                         : ''}
@@ -130,7 +133,9 @@ export function RecordsScreen() {
         )}
       </Tabs>
 
-      <DayDetailModal date={openDate} items={dayItems} onClose={() => setOpenDate(null)} />
+      <ShieldLedger entries={ledger} />
+
+      <DayDetailModal date={openDate} items={dayItems} bonus={dayBonus} onClose={() => setOpenDate(null)} />
     </div>
   );
 }

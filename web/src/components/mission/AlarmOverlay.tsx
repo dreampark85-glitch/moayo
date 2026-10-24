@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { amountLabel } from '@/components/mission/labels';
 import { useApp } from '@/components/shell/AppProvider';
 import { MAX_SNOOZE, canSnooze } from '@/lib/alarm';
-import { selectMissionView } from '@/lib/selectors';
+import { selectComeback, selectMissionView } from '@/lib/selectors';
 
 const TICK_MS = 250;
 
@@ -28,6 +28,8 @@ export function AlarmOverlay() {
   if (!alarm || alarm.phase !== 'ringing') return null;
   const view = selectMissionView(state, alarm.missionId);
   if (!view) return null;
+  const comeback = selectComeback(state);
+  const comebackMessage = comeback && comeback.missionId === alarm.missionId ? comeback.message : '';
   const remainingSec =
     alarm.shown === 3 && alarm.deadlineAt !== null && now !== null
       ? Math.max(0, Math.ceil((alarm.deadlineAt - now) / 1000))
@@ -42,6 +44,7 @@ export function AlarmOverlay() {
       snoozeLeft={MAX_SNOOZE - (alarm.shown - 1)}
       snoozable={canSnooze(alarm)}
       remainingSec={remainingSec}
+      comebackMessage={comebackMessage}
       missionId={alarm.missionId}
     />
   );
@@ -54,10 +57,11 @@ interface DialogProps {
   snoozeLeft: number;
   snoozable: boolean;
   remainingSec: number | null;
+  comebackMessage: string;
   missionId: string;
 }
 
-function AlarmDialog({ title, body, shown, snoozeLeft, snoozable, remainingSec, missionId }: DialogProps) {
+function AlarmDialog({ title, body, shown, snoozeLeft, snoozable, remainingSec, comebackMessage, missionId }: DialogProps) {
   const { api } = useApp();
   const router = useRouter();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -95,6 +99,11 @@ function AlarmDialog({ title, body, shown, snoozeLeft, snoozable, remainingSec, 
     router.push(`/mission/${missionId}`);
   }
 
+  function startMini() {
+    api.alarmStart();
+    router.push(`/mission/${missionId}?mode=mini`);
+  }
+
   // 3번째 노출 카운트다운 안내는 5초 단위로만 갱신해 스크린리더 과다 낭독을 막는다
   const announce =
     remainingSec === null ? '' : `약 ${Math.ceil(remainingSec / 5) * 5}초 안에 시작하지 않으면 미실천으로 기록돼요.`;
@@ -117,6 +126,7 @@ function AlarmDialog({ title, body, shown, snoozeLeft, snoozable, remainingSec, 
         <p id="alarm-desc" className="text-xl font-semibold">
           {body}
         </p>
+        {comebackMessage && <p className="text-base text-slate-800">{comebackMessage}</p>}
         <p className="text-sm text-slate-700">남은 스누즈 {snoozeLeft}회</p>
         {remainingSec !== null && (
           <div className="rounded-xl border-2 border-rose-700 bg-rose-50 p-3 text-rose-950">
@@ -136,6 +146,13 @@ function AlarmDialog({ title, body, shown, snoozeLeft, snoozable, remainingSec, 
           className="min-h-14 w-full rounded-xl bg-emerald-700 px-4 text-lg font-bold text-white"
         >
           미션 시작
+        </button>
+        <button
+          type="button"
+          onClick={startMini}
+          className="min-h-12 w-full rounded-xl border-2 border-emerald-700 px-4 font-semibold text-emerald-900"
+        >
+          오늘은 1분 버전으로
         </button>
         {snoozable && (
           <button

@@ -14,7 +14,8 @@ interface Props {
 export function cellLabel(cell: HeatmapCell): string {
   const [, m, d] = cell.date.split('-');
   const missed = cell.missedCount > 0 ? `, 미실천 ${cell.missedCount}회` : '';
-  return `${Number(m)}월 ${Number(d)}일, ${cell.doneCount}회 완료${missed}`;
+  const bonus = cell.bonusCount > 0 ? `, 보너스 ${cell.bonusCount}회` : '';
+  return `${Number(m)}월 ${Number(d)}일, ${cell.doneCount}회 완료${missed}${bonus}`;
 }
 
 export function Heatmap({ heatmap, label, onOpen }: Props) {
@@ -76,12 +77,15 @@ export function Heatmap({ heatmap, label, onOpen }: Props) {
                 onFocus={() => setFocusedDate(cell.date)}
                 onKeyDown={(e) => onKeyDown(e, cell.date)}
                 onClick={() => onOpen(cell.date)}
-                className={`heat-${cell.level} flex min-h-12 flex-col items-center justify-center rounded-md border border-slate-300 text-xs ${
+                className={`heat-${cell.level} ${cell.bonusCount > 0 ? 'heat-bonus' : ''} flex min-h-12 flex-col items-center justify-center rounded-md border border-slate-300 text-xs ${
                   cell.date === today() ? 'ring-2 ring-slate-900' : ''
                 }`}
               >
                 <span className="font-bold">{Number(cell.date.slice(8))}</span>
-                <span className="rounded bg-white/80 px-1 text-slate-900">{cell.doneCount}회</span>
+                <span className="relative z-10 rounded bg-white/80 px-1 text-slate-900">{cell.doneCount}회</span>
+                {cell.bonusCount > 0 ? (
+                  <span className="relative z-10 rounded bg-violet-100 px-1 text-[10px] font-bold text-violet-900">보너스 {cell.bonusCount}</span>
+                ) : null}
               </button>
             ) : (
               <div key={`b-${ri}-${ci}`} role="gridcell" aria-hidden="true" />
@@ -110,6 +114,10 @@ export function HeatmapLegend() {
           {l.text}
         </li>
       ))}
+      <li className="flex items-center gap-2">
+        <span aria-hidden="true" className="heat-0 heat-bonus inline-block size-6 rounded border border-slate-300" />
+        보너스 (점 무늬)
+      </li>
     </ul>
   );
 }

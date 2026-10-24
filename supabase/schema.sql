@@ -14,6 +14,9 @@ create type mission_type     as enum ('count', 'steps', 'timer', 'photo', 'mini'
 create type record_status    as enum ('done', 'missed');
 create type verification     as enum ('auto', 'manual', 'simulated'); -- 수동 카운트·미니 미션은 manual, 웹 프로토타입 걸음 수는 simulated
 create type difficulty       as enum ('easy', 'ok', 'hard');
+create type record_kind      as enum ('normal', 'mini', 'bonus', 'comeback');   -- v0.2
+create type reminder_setting as enum ('none', 'hourBefore', 'morning');         -- v0.2
+create type app_event_type   as enum ('reminder_sent', 'reminder_blocked', 'alarm_fired', 'alarm_blocked', 'notification_off'); -- v0.2
 create type rec_response     as enum ('accepted', 'edited', 'skipped');
 create type rec_rule         as enum (
   'pain_stop', 'missed_down', 'hard_down', 'easy_up', 'ok_hold',
@@ -36,6 +39,8 @@ create table profiles (
   notification_intensity notif_intensity not null default 'normal',
   subscription           subscription    not null default 'free',
   onboarded              boolean         not null default false,
+  reminder_setting       reminder_setting not null default 'hourBefore',   -- v0.2
+  bonus_notification     boolean         not null default false,           -- v0.2
   created_at             timestamptz     not null default now(),
   updated_at             timestamptz     not null default now()
 );
@@ -79,8 +84,11 @@ create index missions_goal_date_idx on missions (goal_id, mission_date);
 -- ───────── Record ─────────
 create table records (
   record_id     text primary key default gen_random_uuid()::text,
-  mission_id    text          not null unique references missions(mission_id) on delete cascade,
-  goal_id       text          not null references goals(goal_id) on delete cascade,  -- 조회 편의용 비정규화
+  user_id       uuid          not null references profiles(user_id) on delete cascade,  -- v0.2: 보너스는 goal이 없으므로 직접 소유
+  kind          record_kind   not null default 'normal',                              -- v0.2
+  bonus_key     text,                                                                 -- v0.2: 보너스 3종 id
+  mission_id    text          unique references missions(mission_id) on delete cascade,  -- 보너스는 null
+  goal_id       text          references goals(goal_id) on delete cascade,            -- 조회 편의용 비정규화, 보너스는 null
   record_date   date          not null,                                              -- 미션 예정일
   status        record_status not null,
   amount        integer       not null default 0 check (amount >= 0),
@@ -91,9 +99,14 @@ create table records (
   completed_at  timestamptz   not null,
   created_at    timestamptz   not null default now(),
   updated_at    timestamptz   not null default now(),
-  check ((status = 'done' and difficulty is not null) or (status = 'missed' and difficulty is null))
+  constraint records_difficulty_shape check (
+    kind = 'bonus' or (status = 'done' and difficulty is not null) or (status = 'missed' and difficulty is null)),
+  constraint records_kind_shape check (
+    (kind = 'bonus' and goal_id is null and mission_id is null and bonus_key is not null and status = 'done')
+    or (kind <> 'bonus' and goal_id is not null and mission_id is not null))
 );
 create index records_goal_date_idx on records (goal_id, record_date desc);
+create index records_user_date_idx on records (user_id, record_date desc);
 
 -- ───────── Recommendation ─────────
 create table recommendations (
@@ -125,6 +138,17 @@ create table pain_clears (
   primary key (user_id, exercise)
 );
 
+-- ───────── 알림 이벤트 로그 (v0.2: 지표·상한 판단용) ─────────
+create table app_events (
+  event_id   text primary key default gen_random_uuid()::text,
+  user_id    uuid not null references profiles(user_id) on delete cascade,
+  type       app_event_type not null,
+  event_date date not null,
+  payload    jsonb not null default '{}',
+  created_at timestamptz not null default now()
+);
+create index app_events_user_date_idx on app_events (user_id, event_date);
+
 -- ───────── updated_at 트리거 ─────────
 create trigger profiles_updated before update on profiles for each row execute function set_updated_at();
 create trigger goals_updated    before update on goals    for each row execute function set_updated_at();
@@ -149,6 +173,7 @@ alter table records         enable row level security;
 alter table recommendations enable row level security;
 alter table streaks         enable row level security;
 alter table pain_clears     enable row level security;
+alter table app_events      enable row level security;
 
 create policy profiles_own on profiles for all
   using (user_id = auth.uid()) with check (user_id = auth.uid());
@@ -163,8 +188,9 @@ create policy missions_own on missions for all
   using (exists (select 1 from goals g where g.goal_id = missions.goal_id and g.user_id = auth.uid()))
   with check (exists (select 1 from goals g where g.goal_id = missions.goal_id and g.user_id = auth.uid()));
 create policy records_own on records for all
-  using (exists (select 1 from goals g where g.goal_id = records.goal_id and g.user_id = auth.uid()))
-  with check (exists (select 1 from goals g where g.goal_id = records.goal_id and g.user_id = auth.uid()));
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy app_events_own on app_events for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy recommendations_own on recommendations for all
   using (exists (select 1 from goals g where g.goal_id = recommendations.goal_id and g.user_id = auth.uid()))
   with check (exists (select 1 from goals g where g.goal_id = recommendations.goal_id and g.user_id = auth.uid()));

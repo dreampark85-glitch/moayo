@@ -31,6 +31,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    // 시연 시나리오: Mock 모드에서만 ?scenario=demo (키가 있는 DB 모드는 사용자 데이터를 건드리지 않는다)
+    if (isSupabaseConfigured) return;
+    if (new URLSearchParams(window.location.search).get('scenario') === 'demo') {
+      createApi(store.getState, store.dispatch).loadScenario('demo');
+    }
+  }, [store]);
+
+  useEffect(() => {
     if (!isSupabaseConfigured) return;
     let cancelled = false;
     (async () => {

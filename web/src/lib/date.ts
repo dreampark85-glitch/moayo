@@ -6,9 +6,14 @@ export const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'] as c
 
 let todayOverride: ISODate | null = null;
 
-/** 검증 스크립트 전용: 날짜를 고정한다. null이면 실제 오늘 날짜로 복귀 */
+/** 검증 스크립트·시연 도구: 날짜를 고정한다. null이면 실제 오늘 날짜로 복귀 */
 export function setToday(d: ISODate | null): void {
   todayOverride = d;
+}
+
+/** 현재 고정된 날짜(없으면 null). 시연 도구의 날짜 이동·시나리오 전환용 */
+export function getTodayOverride(): ISODate | null {
+  return todayOverride;
 }
 
 export function today(): ISODate {
